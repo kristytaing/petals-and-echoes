@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🌸 Petals & Echoes</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: #1a0f14; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; font-family: Georgia, serif; }
+    h1 { color: #f5c9d8; font-size: 1.1rem; letter-spacing: 3px; margin-bottom: 10px; opacity: 0.8; }
+    canvas { border-radius: 12px; box-shadow: 0 0 60px rgba(255,150,180,0.25); cursor: none; }
+    p { color: #c4a0b0; font-size: 0.7rem; margin-top: 10px; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+  <h1>✦ PETALS & ECHOES ✦</h1>
+  <canvas id="game" width="800" height="500"></canvas>
+  <p>ARROW KEYS or WASD to move &nbsp;·&nbsp; Collect glowing crystals &nbsp;·&nbsp; Walk through petals</p>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ─── THEME ───────────────────────────────────────────────────────────────
+const T = {
+  panelFill:   'rgba(255,240,245,0.92)',
+  panelStroke: 'rgba(212,160,175,0.6)',
+  slotEmpty:   'rgba(253,230,238,0.75)',
+  slotFilled:  'rgba(247,184,200,0.95)',
+  slotGlow:    'rgba(255,150,180,0.5)',
+  slotStroke:  '#d4899a',
+  crystalBadge:'rgba(200,184,255,0.88)',
+  crystalGlow: 'rgba(180,160,255,0.45)',
+  crystalText: '#7a60c8',
+  compassFill: 'rgba(245,235,220,0.88)',
+  compassBrown:'#b89870',
+  compassRose: '#e87878',
+  textLight:   '#c4a0b0',
+  roundRect(x,y,w,h,r){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y); ctx.lineTo(x+w-r,y);
+    ctx.quadraticCurveTo(x+w,y,x+w,y+r);
+    ctx.lineTo(x+w,y+h-r);
+    ctx.quadraticCurveTo(x+w,y+h,x+w-r,y+h);
+    ctx.lineTo(x+r,y+h);
+    ctx.quadraticCurveTo(x,y+h,x,y+h-r);
+    ctx.lineTo(x,y+r);
+    ctx.quadraticCurveTo(x,y,x+r,y);
+    ctx.closePath();
+  }
+};
+
+// ─── WORLD / TILES ───────────────────────────────────────────────────────
+function drawWorld(t) {
+  // Sky gradient
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#f9d8e8'); sky.addColorStop(0.5,'#fce8d0'); sky.addColorStop(1,'#e8d4c0');
+  ctx.fillStyle = sky; ctx.fillRect(0,0,W,H);
+
+  // Rolling hills
+  ctx.fillStyle='#d4c8b0';
+  ctx.beginPath(); ctx.moveTo(0,H*0.45);
+  ctx.bezierCurveTo(W*0.2,H*0.35,W*0.4,H*0.55,W*0.6,H*0.4);
+  ctx.bezierCurveTo(W*0.8,H*0.28,W,H*0.42,W,H*0.5);
+  ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+
+  // Grass
+  ctx.fillStyle='#c8d8a0';
+  ctx.beginPath(); ctx.moveTo(0,H*0.55);
+  ctx.bezierCurveTo(W*0.25,H*0.48,W*0.5,H*0.62,W*0.75,H*0.52);
+  ctx.bezierCurveTo(W*0.88,H*0.47,W,H*0.55,W,H*0.6);
+  ctx.lineTo(W,H); ctx.lineTo(0,H); ctx.closePath(); ctx.fill();
+
+  // Mossy path
+  ctx.strokeStyle='#e8d8b8'; ctx.lineWidth=22; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(W*0.5,H); ctx.bezierCurveTo(W*0.5,H*0.8,W*0.35,H*0.65,W*0.3,H*0.5);
+  ctx.stroke();
+  ctx.strokeStyle='#f0e4c8'; ctx.lineWidth=14;
+  ctx.beginPath(); ctx.moveTo(W*0.5,H); ctx.bezierCurveTo(W*0.5,H*0.8,W*0.35,H*0.65,W*0.3,H*0.5);
+  ctx.stroke();
+
+  // Ponds
+  drawPond(ctx, W*0.22, H*0.58, 55, 28, t);
+  drawPond(ctx, W*0.68, H*0.52, 65, 32, t);
+
+  // Trees
+  drawTree(ctx, W*0.12, H*0.44, 1.1, t);
+  drawTree(ctx, W*0.82, H*0.38, 0.9, t);
+  drawTree(ctx, W*0.55, H*0.3,  0.75, t);
+
+  // Mossy stones
+  drawStone(ctx, W*0.42, H*0.55);
+  drawStone(ctx, W*0.6,  H*0.62);
+  drawStone(ctx, W*0.18, H*0.68);
+}
+
+function drawPond(ctx, x, y, rx, ry, t) {
+  // Reflection shimmer
+  const pond = ctx.createRadialGradient(x,y,0,x,y,rx);
+  pond.addColorStop(0,'rgba(180,210,240,0.85)');
+  pond.addColorStop(0.6,'rgba(160,195,230,0.7)');
+  pond.addColorStop(1,'rgba(140,180,220,0.3)');
+  ctx.fillStyle=pond;
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.fill();
+  // Shimmer lines
+  ctx.strokeStyle='rgba(255,255,255,0.3)'; ctx.lineWidth=1.5;
+  for(let i=0;i<3;i++){
+    const ox = Math.sin(t*0.8+i*1.2)*6;
+    ctx.beginPath(); ctx.moveTo(x-rx*0.4+ox,y-4+i*5); ctx.lineTo(x+rx*0.3+ox,y-4+i*5); ctx.stroke();
+  }
+  // Subtle border
+  ctx.strokeStyle='rgba(160,195,230,0.5)'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.ellipse(x,y,rx,ry,0,0,Math.PI*2); ctx.stroke();
+}
+
+function drawTree(ctx, x, y, scale, t) {
+  const sway = Math.sin(t*0.6)*2*scale;
+  // Trunk
+  ctx.fillStyle='#a08060';
+  ctx.fillRect(x-5*scale+sway*0.3, y, 10*scale, 30*scale);
+  // Foliage layers (soft blobs)
+  const colors=['#e8d890','#f0e0a0','#e4d888'];
+  [0,1,2].forEach(i=>{
+    ctx.fillStyle=colors[i];
+    ctx.beginPath();
+    ctx.arc(x+sway*(0.3+i*0.1), y-10*scale-i*18*scale, (32-i*4)*scale, 0, Math.PI*2);
+    ctx.fill();
+  });
+  // Blossom dots
+  ctx.fillStyle='rgba(255,192,210,0.6)';
+  for(let i=0;i<6;i++){
+    const a=i/6*Math.PI*2+t*0.2; const r=(20+i*3)*scale;
+    ctx.beginPath(); ctx.arc(x+Math.cos(a)*r+sway, y-20*scale+Math.sin(a)*r*0.5, 4*scale,0,Math.PI*2); ctx.fill();
+  }
+}
+
+function drawStone(ctx, x, y) {
+  ctx.fillStyle='#b8b0a0';
+  ctx.beginPath(); ctx.ellipse(x,y,18,11,0.2,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,0.25)';
+  ctx.beginPath(); ctx.ellipse(x-4,y-3,7,4,0.2,0,Math.PI*2); ctx.fill();
+  // Moss
+  ctx.fillStyle='rgba(140,180,100,0.5)';
+  ctx.beginPath(); ctx.ellipse(x+2,y+2,9,5,0.2,0,Math.PI*2); ctx.fill();
+}
+
+// ─── PETALS ──────────────────────────────────────────────────────────────
+const petals = Array.from({length:22},()=>({
+  x: Math.random()*W, y: Math.random()*H,
+  vx:(Math.random()-0.5)*0.4, vy: 0.3+Math.random()*0.5,
+  rot: Math.random()*Math.PI*2, rotV:(Math.random()-0.5)*0.04,
+  size:4+Math.random()*5, alpha:0.5+Math.random()*0.5,
+  color:['#f7b8c8','#fcd8e0','#e8c0d8','#fce0b0'][Math.floor(Math.random()*4)]
+}));
+
+function updatePetals(){
+  petals.forEach(p=>{
+    p.x+=p.vx+Math.sin(Date.now()*0.001+p.y*0.01)*0.3;
+    p.y+=p.vy; p.rot+=p.rotV;
+    if(p.y>H+10){ p.y=-10; p.x=Math.random()*W; }
+  });
+}
+
+function drawPetals(){
+  petals.forEach(p=>{
+    ctx.save(); ctx.globalAlpha=p.alpha;
+    ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+    ctx.fillStyle=p.color;
+    ctx.beginPath(); ctx.ellipse(0,0,p.size,p.size*0.5,0,0,Math.PI*2); ctx.fill();
+    ctx.restore();
+  });
+}
+
+// ─── CRYSTALS ────────────────────────────────────────────────────────────
+const CTYPES = {
+  memory:     {color:'#c9b8ff',glow:'#e8deff'},
+  wind:       {color:'#b8ffd4',glow:'#d8fff0'},
+  reflection: {color:'#b8e4ff',glow:'#daf2ff'},
+};
+const crystals = [
+  {x:W*0.22,y:H*0.48,type:'reflection',collected:false,phase:0},
+  {x:W*0.68,y:H*0.42,type:'reflection',collected:false,phase:1.2},
+  {x:W*0.48,y:H*0.52,type:'wind',      collected:false,phase:2.1},
+  {x:W*0.33,y:H*0.68,type:'wind',      collected:false,phase:0.7},
+  {x:W*0.18,y:H*0.62,type:'memory',    collected:false,phase:1.8},
+  {x:W*0.75,y:H*0.62,type:'memory',    collected:false,phase:3.0},
+  {x:W*0.58,y:H*0.35,type:'memory',    collected:false,phase:0.4},
+];
+let pops = [];
+
+function drawCrystals(t){
+  crystals.forEach(c=>{
+    if(c.collected) return;
+    const pal=CTYPES[c.type];
+    const pulse=0.7+Math.sin(t*1.8+c.phase)*0.3;
+    const floatY=c.y+Math.sin(t*1.4+c.phase)*3;
+    const sz=28;
+    // Halo
+    const halo=ctx.createRadialGradient(c.x,floatY,sz*0.3,c.x,floatY,sz*1.8);
+    halo.addColorStop(0,pal.glow+'cc'); halo.addColorStop(1,pal.glow+'00');
+    ctx.globalAlpha=pulse*0.55; ctx.fillStyle=halo;
+    ctx.beginPath(); ctx.arc(c.x,floatY,sz*1.8,0,Math.PI*2); ctx.fill();
+    ctx.globalAlpha=1;
+    // Diamond
+    ctx.save(); ctx.translate(c.x,floatY); ctx.rotate(t*0.3+c.phase);
+    ctx.fillStyle=pal.color; ctx.strokeStyle=pal.glow; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(0,-sz*0.7); ctx.lineTo(sz*0.45,0); ctx.lineTo(0,sz*0.7); ctx.lineTo(-sz*0.45,0); ctx.closePath();
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,0.45)';
+    ctx.beginPath(); ctx.moveTo(0,-sz*0.55); ctx.lineTo(sz*0.22,-sz*0.1); ctx.lineTo(0,sz*0.12); ctx.lineTo(-sz*0.22,-sz*0.1); ctx.closePath(); ctx.fill();
+    ctx.restore();
+    // Sparkles
+    ctx.globalAlpha=0.6+Math.sin(t*1.5+c.phase)*0.4; ctx.fillStyle='#fff';
+    for(let i=0;i<5;i++){
+      const a=i/5*Math.PI*2+t*0.5+c.phase;
+      ctx.beginPath(); ctx.arc(c.x+Math.cos(a)*22,floatY+Math.sin(a)*11,2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  });
+  // Pop animations
+  pops=pops.filter(p=>p.prog<1);
+  pops.forEach(p=>{
+    p.prog+=0.03;
+    ctx.globalAlpha=(1-p.prog)*0.7; ctx.strokeStyle=p.color; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(p.x,p.y,20+p.prog*45,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=(1-p.prog); ctx.fillStyle=p.color;
+    ctx.font='13px Georgia'; ctx.textAlign='center';
+    ctx.fillText('✦ echo found',p.x,p.y-20-p.prog*32);
+    ctx.globalAlpha=1;
+  });
+}
+
+// ─── PLAYER ──────────────────────────────────────────────────────────────
+const player = { x:W*0.5, y:H*0.62, speed:2.2,
+  hair:'#7a4a2a', skin:'#f5c9a0', dress:'#f2a7b8', trim:'#fde8ee', outline:'#c47a8a' };
+
+function drawPlayer(x,y){
+  // Shadow
+  ctx.globalAlpha=0.18; ctx.fillStyle='#a07080';
+  ctx.beginPath(); ctx.ellipse(x+2,y+22,10,4,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+  // Outline
+  ctx.strokeStyle=player.outline; ctx.lineWidth=2.5; ctx.lineJoin='round';
+  ctx.beginPath(); ctx.moveTo(x-9,y+6); ctx.quadraticCurveTo(x-12,y+20,x-7,y+26);
+  ctx.lineTo(x+7,y+26); ctx.quadraticCurveTo(x+12,y+20,x+9,y+6); ctx.closePath(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x,y-4,9.5,0,Math.PI*2); ctx.stroke();
+  // Dress
+  ctx.fillStyle=player.dress;
+  ctx.beginPath(); ctx.moveTo(x-9,y+6); ctx.quadraticCurveTo(x-12,y+20,x-7,y+26);
+  ctx.lineTo(x+7,y+26); ctx.quadraticCurveTo(x+12,y+20,x+9,y+6); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=player.trim;
+  ctx.beginPath(); ctx.ellipse(x,y+6,7,3,0,0,Math.PI*2); ctx.fill();
+  // Head
+  ctx.fillStyle=player.skin; ctx.beginPath(); ctx.arc(x,y-4,9,0,Math.PI*2); ctx.fill();
+  // Hair
+  ctx.fillStyle=player.hair;
+  ctx.beginPath(); ctx.arc(x,y-6,9,Math.PI,0);
+  ctx.quadraticCurveTo(x+11,y-2,x+8,y+4); ctx.quadraticCurveTo(x-8,y+4,x-11,y-2); ctx.closePath(); ctx.fill();
+  ctx.fillStyle='#a06840'; ctx.beginPath(); ctx.ellipse(x-2,y-10,4,2.5,-0.4,0,Math.PI*2); ctx.fill();
+  // Cheeks
+  ctx.globalAlpha=0.35; ctx.fillStyle='#f0a0a0';
+  ctx.beginPath(); ctx.ellipse(x-5,y-2,3,2,0,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(x+5,y-2,3,2,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1;
+  // Eyes
+  ctx.fillStyle='#5a3a2a';
+  ctx.beginPath(); ctx.arc(x-3,y-4,1.5,0,Math.PI*2); ctx.arc(x+3,y-4,1.5,0,Math.PI*2); ctx.fill();
+}
+
+// ─── HUD ─────────────────────────────────────────────────────────────────
+const inv = Array(5).fill(null).map(()=>({filled:false,glow:0}));
+let crystalCount=0;
+const totalCrystals=crystals.length;
+
+function drawHUD(t){
+  ctx.save(); ctx.globalAlpha=0.92;
+
+  // ── Portrait (bottom-left) ──
+  const px=46,py=H-58,pr=32;
+  const g=ctx.createRadialGradient(px,py,pr*0.6,px,py,pr+6);
+  g.addColorStop(0,'rgba(255,200,210,0.4)'); g.addColorStop(1,'rgba(255,200,210,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(px,py,pr+6,0,Math.PI*2); ctx.fill();
+  ctx.save();
+  ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.clip();
+  ctx.fillStyle='#fde8f0'; ctx.fillRect(px-pr,py-pr,pr*2,pr*2);
+  ctx.translate(px-player.x*0.42,py-player.y*0.42+2); ctx.scale(0.75,0.75);
+  drawPlayer(player.x,player.y);
+  ctx.restore();
+  ctx.strokeStyle='#d4899a'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.arc(px,py,pr,0,Math.PI*2); ctx.stroke();
+  for(let i=0;i<3;i++){
+    const a=(-0.3+i*0.3); const bx=px+Math.cos(a-Math.PI/2)*(pr-1); const by=py+Math.sin(a-Math.PI/2)*(pr-1);
+    ctx.fillStyle='#f7b8c8'; ctx.beginPath(); ctx.ellipse(bx,by,4,2.5,a,0,Math.PI*2); ctx.fill();
+  }
+
+  // ── Petal Inventory ──
+  const ix=14, iy=H-28;
+  ctx.shadowColor='rgba(180,120,140,0.18)'; ctx.shadowBlur=8;
+  T.roundRect(ix,iy-32,160,36,16);
+  ctx.fillStyle=T.panelFill; ctx.fill();
+  ctx.strokeStyle=T.panelStroke; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.fillStyle=T.textLight; ctx.font='10px Georgia'; ctx.textAlign='left';
+  ctx.fillText('petals',ix+8,iy-20);
+  inv.forEach((slot,i)=>{
+    const sx=ix+14+i*29, sy=iy-12;
+    if(slot.glow>0){ ctx.globalAlpha=slot.glow*0.55; ctx.fillStyle=T.slotGlow; ctx.beginPath(); ctx.ellipse(sx,sy,18,12,0,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=0.92; }
+    ctx.fillStyle=slot.filled?T.slotFilled:T.slotEmpty; ctx.strokeStyle=T.slotStroke; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.ellipse(sx,sy,11,7,0,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    if(slot.filled){ ctx.fillStyle='#fff0f4'; ctx.font='9px serif'; ctx.textAlign='center'; ctx.fillText('✿',sx,sy+3); }
+  });
+
+  // ── Crystal Counter ──
+  const cx2=W-72, cy2=H-52;
+  ctx.shadowColor=T.crystalGlow; ctx.shadowBlur=12;
+  T.roundRect(cx2,cy2,64,36,18);
+  ctx.fillStyle=T.crystalBadge; ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.strokeStyle='rgba(180,160,255,0.6)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle=T.crystalText; ctx.font='bold 13px Georgia'; ctx.textAlign='center';
+  ctx.fillText(`✦ ${crystalCount}/${totalCrystals}`,cx2+32,cy2+23);
+
+  // ── Wind Compass ──
+  const ccx=W-38, ccy=42, cr=26;
+  ctx.shadowColor='rgba(160,120,80,0.15)'; ctx.shadowBlur=8;
+  ctx.fillStyle=T.compassFill; ctx.beginPath(); ctx.arc(ccx,ccy,cr,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+  ctx.strokeStyle=T.compassBrown; ctx.lineWidth=2; ctx.setLineDash([4,3]);
+  ctx.beginPath(); ctx.arc(ccx,ccy,cr,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+  ['N','E','S','W'].forEach((d,i)=>{
+    const a=i/4*Math.PI*2-Math.PI/2;
+    ctx.fillStyle=d==='N'?T.compassRose:T.textLight;
+    ctx.font='bold 7px Georgia'; ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillText(d,ccx+Math.cos(a)*(cr-7),ccy+Math.sin(a)*(cr-7));
+  });
+  ctx.save(); ctx.translate(ccx,ccy); ctx.rotate(t*0.4);
+  ctx.fillStyle=T.compassRose; ctx.beginPath(); ctx.moveTo(0,-cr*0.55); ctx.lineTo(4,0); ctx.lineTo(-4,0); ctx.closePath(); ctx.fill();
+  ctx.fillStyle=T.compassFill; ctx.strokeStyle=T.compassBrown; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(0,cr*0.55); ctx.lineTo(4,0); ctx.lineTo(-4,0); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=T.compassBrown; ctx.beginPath(); ctx.arc(0,0,3,0,Math.PI*2); ctx.fill();
+  ctx.restore(); ctx.textBaseline='alphabetic';
+
+  ctx.restore();
+}
+
+// ─── INPUT ───────────────────────────────────────────────────────────────
+const keys={};
+window.addEventListener('keydown',e=>keys[e.key]=true);
+window.addEventListener('keyup',e=>keys[e.key]=false);
+
+function movePlayer(){
+  const s=player.speed;
+  if(keys['ArrowLeft']||keys['a']||keys['A']) player.x=Math.max(20,player.x-s);
+  if(keys['ArrowRight']||keys['d']||keys['D']) player.x=Math.min(W-20,player.x+s);
+  if(keys['ArrowUp']||keys['w']||keys['W']) player.y=Math.max(H*0.28,player.y-s);
+  if(keys['ArrowDown']||keys['s']||keys['S']) player.y=Math.min(H-30,player.y+s);
+  // Collect crystals
+  crystals.forEach(c=>{
+    if(c.collected) return;
+    const dx=c.x-player.x, dy=c.y-player.y;
+    if(Math.sqrt(dx*dx+dy*dy)<34){
+      c.collected=true; crystalCount++;
+      pops.push({x:c.x,y:c.y,color:CTYPES[c.type].glow,prog:0});
+      const empty=inv.find(s=>!s.filled);
+      if(empty){empty.filled=true;empty.glow=1;}
+    }
+  });
+  // Glow fade
+  inv.forEach(s=>{ if(s.glow>0) s.glow=Math.max(0,s.glow-0.02); });
+}
+
+// ─── GAME LOOP ────────────────────────────────────────────────────────────
+let start=null;
+function loop(ts){
+  if(!start) start=ts;
+  const t=(ts-start)/1000;
+  movePlayer(); updatePetals();
+  drawWorld(t);
+  drawPetals();
+  drawCrystals(t);
+  drawPlayer(player.x,player.y);
+  drawHUD(t);
+  // Win message
+  if(crystalCount===totalCrystals){
+    ctx.globalAlpha=0.88;
+    T.roundRect(W/2-160,H/2-36,320,72,20);
+    ctx.fillStyle='rgba(255,240,250,0.97)'; ctx.fill();
+    ctx.strokeStyle='#d4899a'; ctx.lineWidth=2; ctx.stroke();
+    ctx.globalAlpha=1; ctx.fillStyle='#7a5060';
+    ctx.font='bold 18px Georgia'; ctx.textAlign='center';
+    ctx.fillText('✦ All Echoes Restored ✦',W/2,H/2-8);
+    ctx.font='12px Georgia'; ctx.fillStyle='#c4a0b0';
+    ctx.fillText('The world remembers again 🌸',W/2,H/2+16);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
